@@ -35,5 +35,4 @@ resource "azurerm_virtual_network" "vnetname" {
 
 output "name" {
   value = azurerm_resource_group.resourcename.name
-  
 }

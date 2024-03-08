@@ -32,3 +32,8 @@ resource "azurerm_virtual_network" "vnetname" {
   location            = azurerm_resource_group.resourcename.location
   resource_group_name = azurerm_resource_group.resourcename.name
 }
+
+output "name" {
+  value = azurerm_resource_group.resourcename.name
+  
+}

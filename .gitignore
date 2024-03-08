@@ -4,6 +4,7 @@
 # .tfstate files
 *.tfstate
 *.tfstate.*
+.azure.md
 
 # Crash log files
 crash.log

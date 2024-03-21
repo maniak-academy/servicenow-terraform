@@ -15,37 +15,33 @@ terraform {
   }
 }
 
-
-
 provider "azurerm" {
   features {}
 }
 
-resource "azurerm_resource_group" "resourcename" {
-  name     = var.resource_group_name
-  location = var.location
+resource "azurerm_resource_group" "example" {
+  name     = "example-resources"
+  location = "West Europe"
 }
 
-resource "azurerm_virtual_network" "vnetname" {
-  name                = var.vnet_name
+resource "azurerm_virtual_network" "example" {
+  name                = "example-network"
   address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.resourcename.location
-  resource_group_name = azurerm_resource_group.resourcename.name
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 }
-
 
 resource "azurerm_subnet" "example" {
   name                 = "internal"
-  resource_group_name  = azurerm_resource_group.resourcename.name
-  virtual_network_name = azurerm_virtual_network.vnetname.name
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
   address_prefixes     = ["10.0.2.0/24"]
 }
 
 resource "azurerm_network_interface" "example" {
-  count               = var.vm_count
-  name                = "example-nic-${count.index}"
-  location            = azurerm_resource_group.resourcename.location
-  resource_group_name = azurerm_resource_group.resourcename.name
+  name                = "example-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 
   ip_configuration {
     name                          = "internal"
@@ -54,19 +50,17 @@ resource "azurerm_network_interface" "example" {
   }
 }
 
-
-
 resource "azurerm_linux_virtual_machine" "example" {
-  count               = var.vm_count
-  name                = "example-vm-${count.index}"
-  resource_group_name = azurerm_resource_group.resourcename.name
-  location            = azurerm_resource_group.resourcename.location
-  size                = "Standard_F2"
-  admin_username      = "adminuser"
-  disable_password_authentication = true
-  admin_password      = "ComplexPassword#1234"
+  count                           = 2
+  name                            = "example-machine-${count.index}"
+  resource_group_name             = azurerm_resource_group.example.name
+  location                        = azurerm_resource_group.example.location
+  size                            = "Standard_F2"
+  admin_username                  = "adminuser"
+  admin_password                  = "Password1234!ServiceNow"
+  disable_password_authentication = false
   network_interface_ids = [
-    element(azurerm_network_interface.example.*.id, count.index),
+    azurerm_network_interface.example.id,
   ]
 
   os_disk {
@@ -76,78 +70,29 @@ resource "azurerm_linux_virtual_machine" "example" {
 
   source_image_reference {
     publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
     version   = "latest"
   }
 
-}
+  custom_data = base64encode(<<EOF
+#cloud-config
+package_upgrade: true
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - software-properties-common
+  - lsb-release
 
-
-resource "azurerm_virtual_machine_extension" "docker" {
-  count                = var.vm_count
-  name                 = "dockerExtension-${count.index}"
-  virtual_machine_id   = azurerm_linux_virtual_machine.example[count.index].id
-  publisher            = "Microsoft.Azure.Extensions"
-  type                 = "CustomScript"
-  type_handler_version = "2.0"
-
-  settings = <<SETTINGS
-    {
-        "commandToExecute": "sudo apt-get update && sudo apt-get install -y docker.io && sudo docker run -d -p 80:80 kennethreitz/httpbin"
-    }
-SETTINGS
-}
-
-
-resource "azurerm_public_ip" "example" {
-  name                = "example-publicip"
-  location            = azurerm_resource_group.resourcename.location
-  resource_group_name = azurerm_resource_group.resourcename.name
-  allocation_method   = "Static"
-}
-
-resource "azurerm_lb" "example" {
-  name                = "example-lb"
-  location            = azurerm_resource_group.resourcename.location
-  resource_group_name = azurerm_resource_group.resourcename.name
-
-  frontend_ip_configuration {
-    name                 = "PublicIPAddress"
-    public_ip_address_id = azurerm_public_ip.example.id
-  }
-}
-
-
-resource "azurerm_lb_backend_address_pool" "example" {
-  loadbalancer_id = azurerm_lb.example.id
-  name            = "example-bepool"
-}
-
-# Health probe to check the availability of HTTP service
-resource "azurerm_lb_probe" "example" {
-  loadbalancer_id     = azurerm_lb.example.id
-  name                = "http-probe"
-  protocol            = "Http"
-  request_path        = "/"
-  port                = 80
-}
-
-# Load balancer rule for HTTP traffic
-resource "azurerm_lb_rule" "http" {
-  loadbalancer_id                = azurerm_lb.example.id
-  name                           = "http-rule"
-  protocol                       = "Tcp"
-  frontend_port                  = 80
-  backend_port                   = 80
-  frontend_ip_configuration_name = "PublicIPAddress"
-  probe_id                       = azurerm_lb_probe.example.id
-}
-
-# Network Interface updated to associate with the LB backend pool
-resource "azurerm_network_interface_backend_address_pool_association" "example" {
-  count                   = var.vm_count
-  network_interface_id    = azurerm_network_interface.example[count.index].id
-  ip_configuration_name   = "internal"
-  backend_address_pool_id = azurerm_lb_backend_address_pool.example.id
+runcmd:
+  # Install Docker
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - sudo apt-get update
+  - sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+  # Run httpbin container
+  - sudo docker run -d -p 80:80 kennethreitz/httpbin
+EOF
+  )
 }

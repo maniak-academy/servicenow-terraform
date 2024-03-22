@@ -57,7 +57,7 @@ resource "azurerm_linux_virtual_machine" "example" {
   name                            = "example-machine-${count.index}"
   resource_group_name             = azurerm_resource_group.example.name
   location                        = azurerm_resource_group.example.location
-  size                            = "Standard_F2"
+  size                            = var.vm_size
   admin_username                  = "adminuser"
   admin_password                  = "Password1234!ServiceNow"
   disable_password_authentication = false

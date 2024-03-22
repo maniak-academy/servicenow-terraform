@@ -20,3 +20,9 @@ variable "vm_count" {
   description = "Number of VMs to create"
   type        = number
 }
+
+variable "vm_size" {
+  description = "The size of the VM"
+  type        = string
+  
+}

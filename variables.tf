@@ -24,5 +24,4 @@ variable "vm_count" {
 variable "vm_size" {
   description = "The size of the VM"
   type        = string
-  
 }
